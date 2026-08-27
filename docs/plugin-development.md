@@ -1,5 +1,7 @@
 # Plugin development
 
+[简体中文](zh/plugin-development.md)
+
 Each plugin directory contains `manifest.json`, `__init__.py`, an entry-point module, a service,
 models, settings, and a thin router. Use `reliaforge-scaffold` to create the initial files.
 

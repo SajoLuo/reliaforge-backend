@@ -1,5 +1,7 @@
 # Architecture
 
+[简体中文](zh/architecture.md)
+
 ReliaForge separates the platform control plane from plugin domain logic.
 
 ```text

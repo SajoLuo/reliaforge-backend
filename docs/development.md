@@ -1,5 +1,7 @@
 # Development
 
+[简体中文](zh/development.md)
+
 ## Environment
 
 Use Python 3.11 or newer and a virtual environment. Install only from a public Python package

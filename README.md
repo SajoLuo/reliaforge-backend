@@ -1,5 +1,7 @@
 # ReliaForge backend
 
+[简体中文](README_CN.md)
+
 ReliaForge is a lightweight platform for assembling operations tools as isolated,
 lifecycle-managed Python plugins. This repository contains the public backend runtime, two
 neutral example plugins, and a plugin scaffold. It does not ship monitoring storage, an alerting
@@ -7,6 +9,9 @@ suite, or organization-specific integrations.
 
 The optional React management interface lives in
 [`reliaforge-frontend`](https://github.com/SajoLuo/reliaforge-frontend).
+Visit the [ReliaForge project site](https://sajoluo.github.io/reliaforge/) for the cross-project guide,
+or explore the [read-only online demo](https://sajoluo.github.io/reliaforge-frontend/) without running
+a backend.
 
 ## What is included
 

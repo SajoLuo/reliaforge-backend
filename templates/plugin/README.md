@@ -1,5 +1,7 @@
 # {{plugin_name}}
 
+[简体中文](README_CN.md)
+
 This plugin was generated from the ReliaForge public template.
 
 - Customize `manifest.json` without changing its ID.

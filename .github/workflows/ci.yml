@@ -57,8 +57,8 @@ jobs:
         run: |
           uv build
           uv run twine check dist/*
-          uv run python -c "import glob, zipfile; names = set(zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist()); assert {'reliaforge/py.typed', 'reliaforge/plugin_template/manifest.json', 'reliaforge/plugins/demo/manifest.json', 'reliaforge/plugins/runbook/manifest.json'} <= names"
-          uv run python -c "import glob, tarfile; names = set(tarfile.open(glob.glob('dist/*.tar.gz')[0]).getnames()); required = ('/reliaforge/py.typed', '/templates/plugin/manifest.json', '/reliaforge/plugins/demo/manifest.json', '/reliaforge/plugins/runbook/manifest.json'); assert all(any(name.endswith(item) for name in names) for item in required)"
+          uv run python -c "import glob, zipfile; names = set(zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist()); assert {'reliaforge/py.typed', 'reliaforge/plugin_template/README_CN.md', 'reliaforge/plugin_template/manifest.json', 'reliaforge/plugins/demo/manifest.json', 'reliaforge/plugins/runbook/manifest.json'} <= names"
+          uv run python -c "import glob, tarfile; names = set(tarfile.open(glob.glob('dist/*.tar.gz')[0]).getnames()); required = ('/reliaforge/py.typed', '/templates/plugin/README_CN.md', '/templates/plugin/manifest.json', '/reliaforge/plugins/demo/manifest.json', '/reliaforge/plugins/runbook/manifest.json'); assert all(any(name.endswith(item) for name in names) for item in required)"
 
       - name: Audit locked dependencies
         run: |

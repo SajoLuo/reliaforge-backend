@@ -1,0 +1,18 @@
+{
+  "id": "runbook",
+  "name": "Runbook Preview",
+  "version": "1.0.0",
+  "description": "Builds deterministic, read-only runbook previews from typed plugin capabilities.",
+  "api_version": "v1",
+  "entrypoint": "plugin:Plugin",
+  "dependencies": [
+    {
+      "id": "demo",
+      "version": "^1.0.0"
+    }
+  ],
+  "capabilities": ["runbook.preview"],
+  "frontend": {
+    "category": "Examples"
+  }
+}

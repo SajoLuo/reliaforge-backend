@@ -1,0 +1,67 @@
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: python -m pip install uv==0.11.28
+
+      - name: Sync locked public dependencies
+        run: uv sync --all-extras --frozen --default-index https://pypi.org/simple
+
+      - name: Format
+        run: uv run ruff format --check .
+
+      - name: Lint and complexity
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Compile
+        run: uv run python -m compileall -q reliaforge scripts
+
+      - name: Test with branch coverage
+        run: |
+          uv run coverage erase
+          uv run coverage run -m pytest
+          uv run coverage report
+
+      - name: Build and validate distributions
+        run: |
+          uv build
+          uv run twine check dist/*
+          uv run python -c "import glob, zipfile; names = set(zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist()); assert {'reliaforge/py.typed', 'reliaforge/plugin_template/manifest.json', 'reliaforge/plugins/demo/manifest.json', 'reliaforge/plugins/runbook/manifest.json'} <= names"
+          uv run python -c "import glob, tarfile; names = set(tarfile.open(glob.glob('dist/*.tar.gz')[0]).getnames()); required = ('/reliaforge/py.typed', '/templates/plugin/manifest.json', '/reliaforge/plugins/demo/manifest.json', '/reliaforge/plugins/runbook/manifest.json'); assert all(any(name.endswith(item) for name in names) for item in required)"
+
+      - name: Audit locked dependencies
+        run: |
+          uv export --quiet --all-extras --frozen --no-emit-project --no-hashes --output-file audit-requirements.txt
+          uv run pip-audit --strict --requirement audit-requirements.txt
+
+      - name: Check open-source hygiene
+        run: uv run python scripts/check_open_source_hygiene.py .

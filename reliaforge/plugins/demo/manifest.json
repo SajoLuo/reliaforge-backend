@@ -1,0 +1,13 @@
+{
+  "id": "demo",
+  "name": "Demo",
+  "version": "1.0.0",
+  "description": "A side-effect-free greeting plugin that demonstrates the public lifecycle.",
+  "api_version": "v1",
+  "entrypoint": "plugin:Plugin",
+  "dependencies": [],
+  "capabilities": ["demo.greeting"],
+  "frontend": {
+    "category": "Examples"
+  }
+}

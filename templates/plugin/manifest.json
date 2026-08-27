@@ -1,0 +1,13 @@
+{
+  "id": "{{plugin_id}}",
+  "name": "{{plugin_name}}",
+  "version": "0.1.0",
+  "description": "A generated ReliaForge plugin ready for customization.",
+  "api_version": "v1",
+  "entrypoint": "plugin:Plugin",
+  "dependencies": [],
+  "capabilities": ["{{plugin_id}}.message"],
+  "frontend": {
+    "category": "Custom"
+  }
+}

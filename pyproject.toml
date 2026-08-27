@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reliaforge"
+dynamic = ["version"]
+description = "A lightweight, lifecycle-managed plugin platform for operations tooling."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [{ name = "Sajo Luo" }]
+dependencies = [
+  "fastapi>=0.115,<1",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "semantic-version>=2.10,<3",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/SajoLuo/reliaforge-backend"
+Repository = "https://github.com/SajoLuo/reliaforge-backend.git"
+Issues = "https://github.com/SajoLuo/reliaforge-backend/issues"
+"Web console" = "https://github.com/SajoLuo/reliaforge-frontend"
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "coverage[toml]>=7.6,<8",
+  # Starlette's TestClient intentionally uses the maintained httpx2 package.
+  "httpx2>=2.12,<3",
+  "mypy>=1.14,<2",
+  "pip-audit>=2.7,<3",
+  "pytest>=9.0.3,<10",
+  "pytest-asyncio>=1.2,<2",
+  "ruff>=0.9,<1",
+  "twine>=7,<8",
+]
+
+[project.scripts]
+reliaforge = "reliaforge.cli:main"
+reliaforge-scaffold = "reliaforge.scaffold:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["reliaforge"]
+
+[tool.hatch.version]
+path = "reliaforge/__init__.py"
+
+[tool.hatch.build.targets.wheel.force-include]
+"templates/plugin" = "reliaforge/plugin_template"
+
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-config --strict-markers -W error"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["reliaforge"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unused_configs = true
+files = ["reliaforge", "tests", "scripts"]
+
+[[tool.mypy.overrides]]
+module = "semantic_version"
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "C90", "RUF"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

@@ -8,8 +8,8 @@ Python 插件。本仓库包含公开的后端运行时、两个中立示例插�
 
 可选的 React 管理界面位于
 [`reliaforge-frontend`](https://github.com/SajoLuo/reliaforge-frontend)。
-跨仓库指南请访问 [ReliaForge 项目站点](https://sajoluo.github.io/reliaforge/zh/)，也可以在
-不运行后端的情况下体验[只读在线 Demo](https://sajoluo.github.io/reliaforge-frontend/#/zh/)。
+跨仓库指南请访问 [ReliaForge 项目站点](https://reliaforge.dev/zh/)，也可以在不运行后端的
+情况下体验[只读在线 Demo](https://demo.reliaforge.dev/#/zh/)。
 
 ## 包含内容
 

@@ -19,8 +19,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://sajoluo.github.io/reliaforge/"
-Documentation = "https://sajoluo.github.io/reliaforge/"
+Homepage = "https://reliaforge.dev/"
+Documentation = "https://reliaforge.dev/"
 Repository = "https://github.com/SajoLuo/reliaforge-backend.git"
 Issues = "https://github.com/SajoLuo/reliaforge-backend/issues"
 "Web console" = "https://github.com/SajoLuo/reliaforge-frontend"

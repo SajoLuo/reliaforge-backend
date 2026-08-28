@@ -20,8 +20,9 @@ FastAPI application
 ## Discovery and dependency checks
 
 The manager reads all `manifest.json` files before importing Python code. It checks duplicate IDs,
-API versions, missing or incompatible dependencies, cycles, and duplicate capability names. Valid
-plugins are imported in dependency order.
+API versions, missing or incompatible dependencies, cycles, and duplicate capability names. Any
+validation error stops backend startup. After the complete graph passes, plugins are imported in
+dependency order.
 
 An import or constructor failure becomes a `load_error` record without the original exception text.
 Plugins that depend on it become `dependency_unavailable`. Unrelated plugins and the management API

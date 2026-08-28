@@ -37,9 +37,9 @@ Plugin IDs use lowercase snake case. Set `api_version` to `"v1"`. A dependency l
 }
 ```
 
-ReliaForge checks the complete set of manifests before importing plugin code. Missing dependencies,
-version mismatches, cycles, duplicate IDs, and duplicate capability names stop the affected plugins
-from loading.
+ReliaForge checks the complete set of manifests before importing plugin code. A missing dependency,
+version mismatch, cycle, duplicate ID, or duplicate capability name stops backend startup before any
+plugin code is imported.
 
 ## Lifecycle and health
 
@@ -65,6 +65,9 @@ not use them as a job queue.
 ReliaForge mounts each router below `/api/v1/plugins/{plugin_id}`. Keep business logic in the
 service and HTTP validation in the router. The root-relative `/start`, `/stop`, and `/restart`
 paths are reserved for plugin lifecycle operations.
+
+Cross-origin development requests support `GET` and `POST`. Deploy the frontend and backend on the
+same origin when a plugin route needs another HTTP method.
 
 To use another plugin's service, define the interface you need and ask the context for the named
 capability:

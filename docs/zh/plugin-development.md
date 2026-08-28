@@ -38,7 +38,7 @@ reliaforge-scaffold sample_tool --destination ./local-plugins
 ```
 
 导入插件代码之前，ReliaForge 会检查全部 Manifest。依赖缺失、版本不匹配、循环依赖、重复 ID
-和重复能力名称都会阻止受影响的插件加载。
+或重复能力名称都会让后端在导入任何插件代码前停止启动。
 
 ## 启停与健康检查
 
@@ -61,6 +61,9 @@ discover -> validate -> initialize -> start -> health -> stop
 
 ReliaForge 把每个路由挂载到 `/api/v1/plugins/{plugin_id}` 下。业务逻辑放在服务中，HTTP
 校验放在路由中。根路径下的 `/start`、`/stop` 和 `/restart` 保留给插件启停操作。
+
+跨域开发请求支持 `GET` 和 `POST`。插件路由需要其他 HTTP Method 时，请把前端和后端部署在
+同一个来源下。
 
 使用其他插件的服务时，先定义自己需要的接口，再按能力名称向上下文获取：
 

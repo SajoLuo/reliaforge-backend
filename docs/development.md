@@ -2,47 +2,50 @@
 
 [简体中文](zh/development.md)
 
-## Environment
+## Set up the environment
 
-Use Python 3.11 or newer and a virtual environment. Install only from a public Python package
-index:
+Use Python 3.11 or newer in a virtual environment:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-Configuration uses the `RELIAFORGE_` prefix. `.env.example` documents safe local defaults. The
-runtime does not require a database, queue, object store, or private network.
+ReliaForge uses environment variables with the `RELIAFORGE_` prefix. `.env.example` contains safe
+local defaults. The backend does not need a database, queue, object store, or private network.
 
-The platform `AppSettings` may read an untracked `.env`. Plugin `PluginSettings` classes read their
-canonical `RELIAFORGE_<PLUGIN_ID>_` values from the process environment and do not independently
-parse that shared file. Export plugin overrides in the shell or deployment environment.
+The application can read an untracked `.env`. Plugin settings read
+`RELIAFORGE_<PLUGIN_ID>_` values from the process environment. Export plugin-specific values in the
+shell or deployment environment.
 
-`RELIAFORGE_CORS_ORIGINS` is a JSON list of exact HTTP origins. The example permits the local
-frontend at `http://127.0.0.1:5530`. The default list is empty, wildcard origins are rejected, and
-browser credentials or proxy-authentication headers are not enabled through CORS.
-Development management requests that carry an `Origin` header must come from the backend's own
-origin or this configured list, preventing an unrelated website from issuing loopback writes.
+## Configure browser access
 
-Proxy authentication also requires `RELIAFORGE_PROXY_TRUSTED_NETWORKS`, a JSON list of direct-peer
-CIDR ranges. ReliaForge checks the socket peer address and never trusts a forwarded-address header
-for this boundary. Keep the shared secret in deployment secret storage and use at least 32
-characters. The `reliaforge` command disables Uvicorn proxy-header parsing. If you launch Uvicorn
-directly, preserve that boundary with
-`uvicorn reliaforge.app:create_app --factory --no-proxy-headers`.
-All-address networks such as `0.0.0.0/0` and `::/0` are rejected because they remove the independent
-direct-peer trust factor.
+`RELIAFORGE_CORS_ORIGINS` is a JSON list of exact HTTP origins. `.env.example` allows the local
+frontend at `http://127.0.0.1:5530`. An empty list disables cross-origin access, and wildcard origins
+are rejected. A browser management request with an `Origin` header must come from the backend origin
+or this list.
 
-Interactive API docs and the OpenAPI document are available in development and test environments.
-Production disables both endpoints to keep the management surface minimal.
+## Configure production authentication
 
-`RELIAFORGE_PLUGIN_OPERATION_TIMEOUT_SECONDS` is one end-to-end deadline for a requested lifecycle
-action, including time queued behind another lifecycle action. A restart shares that budget across
-stop, initialization, start, and timeout cleanup; it does not receive a fresh deadline for each
-phase. Shutdown similarly includes operation-lock wait in its total budget and never bypasses that
-lock to mutate an in-flight plugin.
+`RELIAFORGE_PROXY_TRUSTED_NETWORKS` is a JSON list of direct proxy CIDR ranges. ReliaForge checks the
+socket peer address, not a forwarded address header. Keep the shared secret in deployment secret
+storage and use at least 32 characters. The trusted network cannot be `0.0.0.0/0` or `::/0`.
 
-## Quality gates
+The packaged `reliaforge` command disables Uvicorn proxy-header parsing. If you start Uvicorn
+directly, use:
+
+```bash
+uvicorn reliaforge.app:create_app --factory --no-proxy-headers
+```
+
+Production disables the interactive API documentation and OpenAPI document.
+
+## Set lifecycle timeouts
+
+`RELIAFORGE_PLUGIN_OPERATION_TIMEOUT_SECONDS` sets one total limit for a requested start, stop, or
+restart, including time waiting behind another operation. Restart shares the same limit across stop,
+initialize, start, and cleanup.
+
+## Run the quality gates
 
 Run every command from the repository root:
 
@@ -62,14 +65,13 @@ uv run pip-audit --strict --requirement audit-requirements.txt
 uv run python scripts/check_open_source_hygiene.py .
 ```
 
-A nonzero result is a failure. Coverage enforces at least 85% branch-aware source coverage, pytest
-treats warnings as errors, and mypy checks runtime, tests, and hygiene scripts in strict mode. The
-same sequence runs in GitHub Actions on Python 3.11 and 3.13. Do not mark an unavailable command as
-passed. `audit-requirements.txt` is a local generated file and must not be committed.
+A nonzero result is a failure. Tests require at least 85% branch-aware source coverage, treat Python
+warnings as errors, and run strict mypy checks. `audit-requirements.txt` is generated locally and
+must not be committed.
 
-## HTTP smoke
+## Check a running backend
 
-Start `reliaforge`, then verify the real data path:
+Start `reliaforge`, then call the real HTTP endpoints:
 
 ```bash
 curl --fail http://127.0.0.1:8000/api/v1/status
@@ -79,4 +81,4 @@ curl --fail http://127.0.0.1:8000/api/v1/plugins/demo/greeting
 curl --fail http://127.0.0.1:8000/api/v1/plugins/runbook/preview
 ```
 
-Stop the process normally so the plugin shutdown lifecycle is exercised.
+Stop the process normally so plugin cleanup also runs.

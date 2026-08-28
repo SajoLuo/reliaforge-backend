@@ -2,25 +2,32 @@
 
 [简体中文](zh/plugin-development.md)
 
-Each plugin directory contains `manifest.json`, `__init__.py`, an entry-point module, a service,
-models, settings, and a thin router. Use `reliaforge-scaffold` to create the initial files.
+Generate a plugin first, then replace the example service with your operations task:
+
+```bash
+reliaforge-scaffold sample_tool --destination ./local-plugins
+```
+
+## Files in a plugin
+
+- `manifest.json` describes the plugin.
+- The plugin class handles initialize, start, health, and stop.
+- The settings class reads environment variables.
+- The service contains the operations task and does not import FastAPI.
+- The router validates HTTP input and calls the service.
+- Tests cover the plugin's API, state changes, health, and cleanup.
 
 ## Manifest
 
-The public manifest fields are:
+The supported fields are:
 
-- `id`, `name`, `version`, `description`, and `api_version`.
-- `entrypoint`, in `module:Class` form relative to the plugin directory.
-- `dependencies`, a list of objects containing a plugin `id` and accepted SemVer `version` range.
-- `capabilities`, a list of unique dotted public service names.
-- `frontend`, optional category metadata for the generic catalog.
+- `id`, `name`, `version`, `description`, and `api_version`;
+- `entrypoint` in `module:Class` form, relative to the plugin directory;
+- `dependencies`, with a plugin `id` and accepted SemVer `version` range;
+- `capabilities`, unique dotted names for services the plugin provides;
+- optional `frontend.category`, used to group plugins in the console.
 
-`settings_schema`, frontend `route`/`icon`, and service registration versions are intentionally not
-manifest fields. The UI derives `/plugins/{plugin_id}`, settings schema comes from Python, and the
-provider plugin SemVer dependency is the compatibility boundary.
-
-Plugin IDs use lowercase snake case. ReliaForge 0.1 accepts `api_version: "v1"`. Dependencies
-use the new public object form; old string-only dependency declarations are intentionally rejected:
+Plugin IDs use lowercase snake case. Set `api_version` to `"v1"`. A dependency looks like this:
 
 ```json
 {
@@ -30,48 +37,40 @@ use the new public object form; old string-only dependency declarations are inte
 }
 ```
 
-Dependency resolution is deterministic and rejects missing plugins, incompatible versions, or
-cycles. The complete manifest set is validated before any entry point is imported.
+ReliaForge checks the complete set of manifests before importing plugin code. A missing dependency,
+version mismatch, cycle, duplicate ID, or duplicate capability name stops backend startup before any
+plugin code is imported.
 
-## Lifecycle
+## Lifecycle and health
 
-The manager drives this sequence:
+The plugin manager calls hooks in this order:
 
 ```text
 discover -> validate -> initialize -> start -> health -> stop
 ```
 
-Initialization registers local services through `PluginContext`; start makes them available;
-stop releases resources. Lifecycle hooks are async and must honor cancellation. Lifecycle state
-uses `running`; degraded runtime quality is represented only by `HealthStatus.DEGRADED`. Synchronous I/O
-must be moved to a bounded execution domain with an explicit timeout. Health is a synchronous,
-side-effect-free snapshot.
+Lifecycle hooks are asynchronous and must respond to cancellation. Move synchronous I/O to a
+bounded worker and set a timeout. Health is a fast, synchronous snapshot and must not make network,
+database, filesystem, or command calls.
 
-`context.publish(...)` returns an `EventDeliveryReport`. Subscribers run concurrently under the
-platform handler timeout. One subscriber's exception or timeout is reported with the stable
-`handler_error` or `handler_timeout` reason and does not fail the publisher; cancellation of the
-publisher itself still propagates. Event delivery is process-local and non-durable; each report
-describes only its publish call, so do not use the bus as a workflow queue. Context-owned
-subscriptions and services are always removed when stop finishes or fails.
+During initialization, register every service listed in `capabilities`. ReliaForge removes a
+plugin's services and event subscriptions when the plugin stops, including after a failed stop.
 
-Every service registered through `context.register_service(...)` must appear in the provider's
-manifest capabilities. Initialization also fails when a declared capability is not registered,
-or when two manifests claim the same capability.
+`context.publish(...)` sends an in-process event to current subscribers. Handlers run concurrently
+with a timeout, and one failed handler does not fail the publisher. Events are not persisted, so do
+not use them as a job queue.
 
-## Routes and services
+## Routes and shared services
 
-The platform mounts a plugin router under `/api/v1/plugins/{plugin_id}`. Routers validate and
-translate HTTP errors only. Domain behavior stays in services, which do not import FastAPI.
-The platform reserves the root-relative `/start`, `/stop`, and `/restart` paths for lifecycle
-operations. Validation isolates a plugin with the stable `reserved_route` reason when its router
-can match one of those paths, whether by a literal, dynamic parameter, catch-all, or trailing
-slash. Nested paths such as `/admin/start` remain available to plugin code.
+ReliaForge mounts each router below `/api/v1/plugins/{plugin_id}`. Keep business logic in the
+service and HTTP validation in the router. The root-relative `/start`, `/stop`, and `/restart`
+paths are reserved for plugin lifecycle operations.
 
-Development CORS intentionally permits only `GET` and `POST`; use same-origin deployment for
-plugins that need other HTTP methods rather than assuming a broader cross-origin contract.
+Cross-origin development requests support `GET` and `POST`. Deploy the frontend and backend on the
+same origin when a plugin route needs another HTTP method.
 
-Plugins request another plugin's public capability with a caller-owned runtime Protocol; direct
-imports of another plugin package are unsupported:
+To use another plugin's service, define the interface you need and ask the context for the named
+capability:
 
 ```python
 from typing import Protocol, runtime_checkable
@@ -87,7 +86,7 @@ greeting = context.get_service("demo.greeting", GreetingCapability)
 
 ## Settings
 
-Declare fields once in a subclass of the platform base and point the plugin class at it:
+Declare configuration fields in a `PluginSettings` subclass:
 
 ```python
 from pydantic import Field
@@ -105,23 +104,13 @@ class Plugin(BasePlugin):
         settings = self.context.get_settings(SampleSettings)
 ```
 
-The manager owns the `RELIAFORGE_<PLUGIN_ID>_` prefix and `__` nested delimiter. It creates one
-instance before the initialize hook, derives the public schema, and recreates settings on restart.
-Use `SecretStr` for secrets and inject them through process environment or deployment secret
-storage. Do not provide secret defaults or log validation exception text.
+Environment variables use the `RELIAFORGE_<PLUGIN_ID>_` prefix and `__` for nested fields. Restart
+reads settings again for the loaded plugin. Use `SecretStr` for secrets and inject values through
+the process environment or deployment secret storage. Never put secrets in defaults, logs, schemas,
+or error messages.
 
-The platform mounts all plugin routes behind management authentication. Catalog, detail, `/live`,
-`/ready`, and `/status` remain public and read-only. There is no manifest opt-out for anonymous
-plugin routes.
+Plugin routes and lifecycle operations require management authentication. Catalog and status reads
+remain public. The backend includes `available_actions` in each plugin response; clients display
+this list, while the backend authenticates and checks every action request.
 
-Catalog and detail responses include `available_actions` with `start`, `stop`, and `restart`
-values. The manager derives the list from runtime state and dependency protection; plugin code and
-clients do not declare it. Treat the field as a UI affordance, not authorization: every lifecycle
-request is still authenticated and revalidated by the backend.
-
-The management `restart` operation runs stop, initialize, and start against the loaded plugin. It
-does not reload Python source or the manifest from disk.
-
-The built-in runbook example demonstrates `demo ^1.0.0`, typed capability lookup, deterministic
-preview data, reverse shutdown order, and provider lifecycle protection without executing commands
-or performing network, database, or filesystem I/O.
+The bundled `demo` and `runbook` plugins show a provider and consumer using a typed shared service.

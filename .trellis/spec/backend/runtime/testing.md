@@ -46,3 +46,9 @@ Simplified Chinese counterparts under `docs/zh/`. Root and scaffold entry points
 plus `README_CN.md`. Preserve reciprocal language links and the one-to-one file set enforced by
 `tests/test_docs_locales.py`; identifiers, routes, configuration keys, commands, and code remain
 canonical across both languages.
+
+Write public documentation for an SRE using the current release. Lead with the task or result, use
+plain operational language, and explain project-specific terms on first use. Omit design history,
+rejected alternatives, internal predecessors, and irrelevant compatibility claims. Keep a negative
+boundary only when it prevents a likely mistake, unsafe deployment, false success, or unsupported
+operation.

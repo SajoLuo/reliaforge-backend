@@ -2,58 +2,61 @@
 
 [English](../architecture.md)
 
-ReliaForge 将平台控制面与插件领域逻辑分离。
+FastAPI 应用提供管理 API 和插件自己的路由。一个插件管理器负责加载插件并控制其状态。
 
 ```text
 FastAPI application
-  -> management router
+  -> management API
   -> plugin manager
-       -> manifest loader
-       -> dependency resolver
-       -> plugin records (candidate / instance / safe error category)
-       -> lifecycle state machine
-       -> controlled plugin context
-            -> service container
-            -> failure-isolating event bus
-  -> plugin routers -> plugin services
+       -> reads and validates manifests
+       -> orders dependencies
+       -> imports plugins
+       -> initializes, starts, checks, and stops plugins
+       -> records status, health, and safe errors
+  -> plugin API routes -> plugin services
 ```
 
-插件发现阶段首先读取并校验所有 `manifest.json`，不会导入插件代码。管理器会针对完整清单
-集合拒绝重复身份、不支持的 API 版本、缺失或版本不兼容的依赖、依赖环，以及重复的能力
-提供方；完成这些检查后，才按依赖顺序导入入口点。导入失败、入口点检查失败或构造失败
-都会成为不泄露敏感信息的 `load_error` 记录。其依赖方不会被导入，并会成为
-`dependency_unavailable`；其他独立分支和管理平面仍可继续运行。失败导入会清理隔离的模块
-命名空间，后续加载不会复用半导入状态。
+## 发现与依赖检查
 
-每个插件都会获得提供方范围内的上下文。服务注册会记录所有权，清理时只移除该插件拥有
-的资源。插件不能直接导入其他插件的实现；消费方使用自己定义的
-`@runtime_checkable Protocol` 解析能力。服务缺失和结构不兼容会产生不同的稳定错误。
-清单中的能力是可执行服务契约：插件不能注册未声明的服务；声明的能力未完成注册时，
-启动也会失败。
+管理器会先读取所有 `manifest.json`，再导入 Python 代码。它会检查重复 ID、API 版本、缺失或
+不兼容的依赖、循环依赖和重复能力名称，然后按依赖顺序导入有效插件。
 
-每个插件可以声明一个 `PluginSettings` 子类。管理器使用规范的
-`RELIAFORGE_<PLUGIN_ID>_` 前缀构造实例，将其注入 `PluginContext`，并通过
-`model_json_schema()` 生成公开 Schema。清单不包含手写 Settings Schema。目录数据和
-生命周期错误消息永远不包含 Secret 值。
+导入或构造失败会生成一条不包含原始异常文本的 `load_error` 记录。依赖该插件的插件会变成
+`dependency_unavailable`。无关插件和管理 API 仍然可用。再次加载之前，失败导入会从临时
+模块命名空间中清除。
 
-`/live`、`/ready` 和 `/status` 读取进程本地的生命周期与服务快照，不查询外部系统，
-也不修复状态。初始化和启动都在已配置的截止时间内执行。插件是受信任的进程内扩展，
-不是沙箱边界。
+## 插件上下文与共享服务
 
-生命周期状态不使用 `degraded`；该值只属于健康状态。平台计数会把每条记录恰好归类为
-running、degraded、stopped 或 error。插件自有路由继承与生命周期操作相同的管理认证
-依赖；liveness、readiness、status、catalog 和 detail 保持公开只读。
+每个插件都有自己的 `PluginContext`。上下文记录该插件创建的服务和事件订阅，因此清理时只会
+移除该插件自己的资源。
 
-事件总线会并发调用当前订阅者，并为每个处理器设置截止时间。处理器异常和超时与发布者
-隔离，并以稳定、不泄露敏感信息的投递报告表示；发布者自身的取消仍会向上传播。投递只在
-当前进程内发生，既不是持久队列，也不是诊断存储。插件停止时始终释放上下文拥有的服务
-和订阅，即使停止 Hook 或事件投递失败也不例外。
+插件在 `capabilities` 中列出共享服务，并在初始化时注册。消费者按名称获取服务，再用自己定义的
+可运行时检查 Python `Protocol` 校验。声明的服务没有注册，或插件注册了未声明的服务时，启动
+会失败。
 
-生命周期操作的截止时间包含等待管理器操作锁的时间。受支持的 ASGI Server 会在调用
-lifespan shutdown 前排空请求任务。`stop_all` 仍把防御性的锁等待计入关闭预算；如果等待
-超时，它会直接返回，不会与当前锁拥有者竞争或修改其插件上下文，进程退出仍是最终恢复
-手段。
+## 配置
 
-目录中的生命周期操作同样由服务器拥有。`available_actions` 根据运行时实例、状态、
-运行中的依赖和活动依赖方计算。加载失败记录，或正受到运行中依赖方保护的提供方，会暴露
-空列表，防止客户端猜测管理器会拒绝的规则。
+每个插件可以提供一个 `PluginSettings` 子类。管理器读取带 `RELIAFORGE_<PLUGIN_ID>_` 前缀的
+变量，创建一个经过校验的实例，并放入插件上下文。同一个类还会生成公开配置 Schema。API 响应
+和启停错误不会包含密钥值。
+
+## 状态、健康和操作
+
+运行状态记录插件是已发现、已验证、已初始化、运行中、已停止还是出错。健康状态单独记录健康、
+降级、错误或停止。
+
+`/live`、`/ready` 和 `/status` 返回内存状态，不会联系外部系统，也不会执行修复。初始化、
+启动、停止和每个事件处理器都有时间限制。
+
+每个插件响应都包含 `available_actions`。管理器根据当前实例、状态、依赖和运行中的依赖方计算
+该列表。API 会认证并重新检查每项操作请求。
+
+## 事件与关闭
+
+事件总线并发调用当前订阅者。处理器出错或超时时，结果会写入投递报告，但不会影响其他处理器。
+事件只保存在内存中，不是持久队列。
+
+插件停止时，即使停止钩子失败，管理器也会移除它的服务和订阅。启停超时包括等待管理器锁的时间。
+进程关闭时，ReliaForge 不会绕过该锁，也不会修改正在执行的插件操作。
+
+插件会作为受信任代码在后端进程内运行。安全沙箱不会把它们与进程或其他插件隔离。

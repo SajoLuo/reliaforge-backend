@@ -2,25 +2,32 @@
 
 [English](../plugin-development.md)
 
-每个插件目录包含 `manifest.json`、`__init__.py`、入口点模块、Service、Model、Settings 和
-一个薄 Router。使用 `reliaforge-scaffold` 创建初始文件。
+先生成插件，再把示例服务替换为你的运维任务：
 
-## 清单
+```bash
+reliaforge-scaffold sample_tool --destination ./local-plugins
+```
 
-公开清单字段包括：
+## 插件中的文件
 
-- `id`、`name`、`version`、`description` 和 `api_version`。
-- `entrypoint`，采用相对插件目录的 `module:Class` 形式。
-- `dependencies`，对象列表；每个对象包含插件 `id` 和允许的 SemVer `version` 范围。
-- `capabilities`，唯一的点分公开服务名称列表。
-- `frontend`，可选的通用目录分类元数据。
+- `manifest.json` 说明插件信息。
+- 插件类处理初始化、启动、健康检查和停止。
+- 设置类读取环境变量。
+- 服务包含运维任务，不导入 FastAPI。
+- 路由校验 HTTP 输入并调用服务。
+- 测试覆盖插件 API、状态变化、健康检查和清理。
 
-`settings_schema`、前端 `route`/`icon` 和服务注册版本刻意不属于清单字段。UI 根据
-`/plugins/{plugin_id}` 生成路由，Settings Schema 来自 Python，而提供方插件的 SemVer
-依赖是兼容性边界。
+## Manifest
 
-插件 ID 使用小写 snake case。ReliaForge 0.1 接受 `api_version: "v1"`。依赖使用新的
-公开对象形式；旧的纯字符串依赖声明会被明确拒绝：
+支持的字段包括：
+
+- `id`、`name`、`version`、`description` 和 `api_version`；
+- `entrypoint`，使用相对于插件目录的 `module:Class` 形式；
+- `dependencies`，包含插件 `id` 和可接受的 SemVer `version` 范围；
+- `capabilities`，插件所提供服务的唯一点分名称；
+- 可选的 `frontend.category`，用于在控制台中对插件分组。
+
+插件 ID 使用小写蛇形命名。`api_version` 设为 `"v1"`。依赖示例如下：
 
 ```json
 {
@@ -30,44 +37,32 @@
 }
 ```
 
-依赖解析是确定性的，并会拒绝插件缺失、版本不兼容或依赖环。在导入任何入口点之前，
-系统会先校验完整清单集合。
+导入插件代码之前，ReliaForge 会检查全部 Manifest。依赖缺失、版本不匹配、循环依赖、重复 ID
+和重复能力名称都会阻止受影响的插件加载。
 
-## 生命周期
+## 启停与健康检查
 
-管理器驱动以下顺序：
+插件管理器按以下顺序调用钩子：
 
 ```text
 discover -> validate -> initialize -> start -> health -> stop
 ```
 
-Initialize 通过 `PluginContext` 注册本地服务；start 使服务可用；stop 释放资源。生命周期
-Hook 是异步的，必须遵守取消语义。生命周期状态使用 `running`；运行质量下降只通过
-`HealthStatus.DEGRADED` 表示。同步 I/O 必须移到有界执行域，并设置显式超时。Health 是
-同步、无副作用的快照。
+启停钩子是异步的，必须响应取消。同步 I/O 应放入有边界的工作线程，并设置超时。健康检查必须
+是快速、同步的快照，不能发起网络、数据库、文件系统或命令调用。
 
-`context.publish(...)` 返回 `EventDeliveryReport`。订阅者在平台处理器超时内并发执行。
-一个订阅者的异常或超时会以稳定的 `handler_error` 或 `handler_timeout` 原因记录，不会让
-发布者失败；发布者自身取消仍会向上传播。事件投递只在进程内发生且不持久；每份报告只
-描述对应的 publish 调用，因此不能把事件总线当作工作流队列。无论 stop 成功还是失败，
-上下文拥有的订阅和服务都会被移除。
+初始化时，需要注册 `capabilities` 中列出的每项服务。插件停止时，ReliaForge 会移除该插件的
+服务和事件订阅，即使停止过程失败也会清理。
 
-通过 `context.register_service(...)` 注册的每项服务都必须出现在提供方清单的
-capabilities 中。声明的能力没有注册，或者两个清单声明同一能力时，初始化也会失败。
+`context.publish(...)` 会把进程内事件发送给当前订阅者。处理器并发运行并有超时限制，单个
+处理器失败不会让发布者失败。事件不会持久化，因此不能用作任务队列。
 
-## 路由与服务
+## 路由与共享服务
 
-平台把插件 Router 挂载在 `/api/v1/plugins/{plugin_id}`。Router 只负责校验和 HTTP 错误
-转换；领域行为留在不导入 FastAPI 的 Service 中。平台保留根相对的 `/start`、`/stop`
-和 `/restart` 路径用于生命周期操作。如果插件 Router 能匹配这些路径，无论是字面量、
-动态参数、Catch-all 还是尾部斜杠，校验都会用稳定的 `reserved_route` 原因隔离该插件。
-插件仍可使用 `/admin/start` 等嵌套路径。
+ReliaForge 把每个路由挂载到 `/api/v1/plugins/{plugin_id}` 下。业务逻辑放在服务中，HTTP
+校验放在路由中。根路径下的 `/start`、`/stop` 和 `/restart` 保留给插件启停操作。
 
-开发 CORS 刻意只允许 `GET` 和 `POST`。需要其他 HTTP Method 的插件应采用同源部署，
-不要假设存在更宽泛的跨域契约。
-
-插件通过调用方自己定义的运行时 Protocol 请求另一个插件的公开能力；不支持直接导入
-另一个插件包：
+使用其他插件的服务时，先定义自己需要的接口，再按能力名称向上下文获取：
 
 ```python
 from typing import Protocol, runtime_checkable
@@ -83,7 +78,7 @@ greeting = context.get_service("demo.greeting", GreetingCapability)
 
 ## Settings
 
-只在平台基类的子类中声明一次字段，并让插件类指向它：
+在 `PluginSettings` 子类中声明配置项：
 
 ```python
 from pydantic import Field
@@ -101,20 +96,11 @@ class Plugin(BasePlugin):
         settings = self.context.get_settings(SampleSettings)
 ```
 
-管理器拥有 `RELIAFORGE_<PLUGIN_ID>_` 前缀和 `__` 嵌套分隔符。它会在 Initialize Hook 前
-创建一个实例，生成公开 Schema，并在 Restart 时重新创建 Settings。Secret 使用
-`SecretStr`，并通过进程环境或部署 Secret Storage 注入。不要提供 Secret 默认值，也不要
-记录 Validation Exception 原文。
+环境变量使用 `RELIAFORGE_<PLUGIN_ID>_` 前缀，用 `__` 表示嵌套字段。重启插件时会重新读取
+配置。密钥请使用 `SecretStr`，并通过进程环境或部署密钥存储注入。不要把密钥写入默认值、
+日志、Schema 或错误信息。
 
-平台把所有插件路由挂在管理认证之后。Catalog、detail、`/live`、`/ready` 和 `/status`
-保持公开只读，清单不能选择匿名开放插件路由。
+插件路由和启停操作需要管理认证，插件列表和状态读取保持公开。后端会在每个插件响应中返回
+`available_actions`；客户端展示该列表，后端仍会认证和检查每项操作请求。
 
-Catalog 和 detail 响应包含值为 `start`、`stop`、`restart` 的 `available_actions`。管理器
-根据运行时状态和依赖保护生成列表，插件代码和客户端都不能声明它。该字段是 UI Affordance，
-不是授权：每个生命周期请求仍会经过认证和重新校验。
-
-管理 `restart` 会在已加载插件上执行 stop、initialize 和 start，不会从磁盘重新加载 Python
-源码或清单。
-
-内置 Runbook 示例展示了 `demo ^1.0.0`、类型化能力查找、确定性预览数据、反向关闭顺序和
-提供方生命周期保护，全程不会执行命令，也不进行网络、数据库或文件系统 I/O。
+内置的 `demo` 和 `runbook` 插件展示了提供者与消费者如何使用带类型的共享服务。

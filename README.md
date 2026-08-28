@@ -9,8 +9,8 @@ suite, or organization-specific integrations.
 
 The optional React management interface lives in
 [`reliaforge-frontend`](https://github.com/SajoLuo/reliaforge-frontend).
-Visit the [ReliaForge project site](https://sajoluo.github.io/reliaforge/) for the cross-project guide,
-or explore the [read-only online demo](https://sajoluo.github.io/reliaforge-frontend/) without running
+Visit the [ReliaForge project site](https://reliaforge.dev/) for the cross-project guide, or explore
+the [read-only online demo](https://demo.reliaforge.dev/) without running
 a backend.
 
 ## What is included

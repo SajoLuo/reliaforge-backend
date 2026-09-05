@@ -2,9 +2,12 @@
 
 [简体中文](README_CN.md)
 
-The ReliaForge backend runs Python operations plugins behind one FastAPI service. It loads plugin
-metadata, checks dependencies, starts plugins in order, reports health, and provides authenticated
-start, stop, and restart operations.
+ReliaForge is a plugin-based operations platform. This backend hosts developers' Python services
+as plugins in one FastAPI process. It loads plugins, checks dependencies, reads configuration,
+reports health, and provides authenticated start, stop, and restart operations.
+
+Each plugin defines its own business logic and HTTP API. A query service, a background collector,
+or a runbook service can use the same platform facilities.
 
 This repository includes the backend, two safe example plugins, and a command that generates a new
 plugin. The optional web console lives in
@@ -21,6 +24,7 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+cp .env.example .env
 reliaforge
 ```
 
@@ -36,8 +40,8 @@ curl http://127.0.0.1:8000/api/v1/plugins/demo/greeting
 curl http://127.0.0.1:8000/api/v1/plugins/runbook/preview
 ```
 
-Copy `.env.example` to an untracked `.env` when you need local overrides. The example allows the
-frontend development origin at `http://127.0.0.1:5530`.
+The copied `.env` allows the frontend development origin at `http://127.0.0.1:5530`.
+Edit this untracked file when you need local overrides.
 
 ## Create a plugin
 

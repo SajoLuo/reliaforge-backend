@@ -1,5 +1,12 @@
 # Plugin contract
 
+## Product boundary
+
+ReliaForge is a plugin-based operations platform. A plugin provides a developer-owned Python
+service; a runbook is one possible service. Platform code owns loading, configuration, dependencies,
+management authentication, and lifecycle. Do not turn plugin-specific workflows into mandatory
+platform abstractions.
+
 ## Current architecture
 
 `reliaforge/plugins/loader.py` reads and validates every manifest before importing entry points.
@@ -28,8 +35,9 @@ Reference tests: `tests/test_manifest.py`, `tests/test_dependency.py`, and
 ## Lifecycle and ownership
 
 - Extend the platform base plugin and keep lifecycle hooks async and cancellation-aware.
-- Initialization registers context-owned resources; start makes the service available; stop releases
-  resources even when a hook or event handler fails.
+- Preserve the context after failed initialization until the manager has attempted stop. Stop hooks
+  must tolerate partial initialization. Cancellation cleanup shares the remaining operation budget,
+  preserves caller cancellation, and always removes the plugin's registrations after the stop attempt.
 - Lifecycle state and health are separate. `degraded` is health, never lifecycle state.
 - Health is a synchronous, side-effect-free in-memory snapshot. It does not probe or repair external
   dependencies.
@@ -41,7 +49,8 @@ Reference tests: `tests/test_lifecycle.py`, `tests/test_events.py`, and `tests/t
 ## Services and events
 
 - Register only capabilities declared by the provider manifest.
-- Consumers resolve capabilities through caller-owned `@runtime_checkable Protocol` types.
+- Consumers declare the provider in their manifest dependencies, then resolve its capabilities
+  through caller-owned `@runtime_checkable Protocol` types. Context lookup must enforce this graph.
 - Do not import another plugin's implementation package.
 - Event delivery is concurrent, deadline-bounded, process-local, and failure-isolating. It is not a
   durable queue or diagnostic store.

@@ -102,7 +102,7 @@ def test_get_service_enforces_caller_owned_runtime_protocol() -> None:
     services = ServiceContainer()
     services.register("provider.message", "provider", CompatibleService())
     services.register("provider.other", "provider", IncompatibleService())
-    context = PluginContext("consumer", services, EventBus(1.0))
+    context = PluginContext("consumer", services, EventBus(1.0), dependencies=("provider",))
 
     capability = context.get_service("provider.message", MessageCapability)
     assert capability.message() == "ready"

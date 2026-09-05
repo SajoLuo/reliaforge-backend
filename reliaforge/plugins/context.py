@@ -25,6 +25,10 @@ class UndeclaredCapabilityError(RuntimeError):
     """Raised when a plugin registers a service absent from its manifest."""
 
 
+class UndeclaredDependencyError(RuntimeError):
+    """Raised when a consumer has not declared the service provider as a dependency."""
+
+
 class ServiceInterfaceError(TypeError):
     """Raised when a capability does not implement the requested runtime interface."""
 
@@ -47,12 +51,15 @@ class PluginContext:
         events: EventBus,
         declared_capabilities: tuple[str, ...] = (),
         settings: PluginSettings | None = None,
+        *,
+        dependencies: tuple[str, ...] = (),
     ) -> None:
         self.plugin_id = plugin_id
         self._services = services
         self._events = events
         self._declared_capabilities = frozenset(declared_capabilities)
         self._settings = settings
+        self._allowed_providers = frozenset((plugin_id, *dependencies))
 
     def register_service(self, name: str, instance: object) -> None:
         """Register a service owned by this plugin."""
@@ -64,7 +71,12 @@ class PluginContext:
     def get_service(self, name: str, interface: RuntimeInterface[ServiceT]) -> ServiceT:
         """Resolve a capability and enforce the caller-owned runtime interface."""
 
-        instance = self._services.get(name)
+        record = self._services.get_record(name)
+        if record.provider not in self._allowed_providers:
+            raise UndeclaredDependencyError(
+                f"service provider is not declared as a dependency: {record.provider}"
+            )
+        instance = record.instance
         try:
             compatible = isinstance(instance, cast(type[object], interface))
         except TypeError:

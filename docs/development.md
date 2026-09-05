@@ -19,7 +19,7 @@ shell or deployment environment.
 
 ## Configure browser access
 
-`RELIAFORGE_CORS_ORIGINS` is a JSON list of exact HTTP origins. `.env.example` allows the local
+`RELIAFORGE_CORS_ORIGINS` is a JSON list of exact HTTP origins, each with a protocol, host, and port. `.env.example` allows the local
 frontend at `http://127.0.0.1:5530`. An empty list disables cross-origin access, and wildcard origins
 are rejected. A browser management request with an `Origin` header must come from the backend origin
 or this list.
@@ -39,11 +39,21 @@ uvicorn reliaforge.app:create_app --factory --no-proxy-headers
 
 Production disables the interactive API documentation and OpenAPI document.
 
+## Run one instance
+
+Run one backend process for a deployment. Each process owns its plugin instances and management
+state; multiple workers do not share start and stop decisions. Configure any process supervisor
+to restart the backend when needed. A fresh backend starts all discovered plugins, including the
+bundled examples. Stopping a plugin through the API affects the current process only.
+
 ## Set lifecycle timeouts
 
 `RELIAFORGE_PLUGIN_OPERATION_TIMEOUT_SECONDS` sets one total limit for a requested start, stop, or
 restart, including time waiting behind another operation. Restart shares the same limit across stop,
-initialize, start, and cleanup.
+initialize, start, and cleanup. The console allows 310 seconds for lifecycle requests, covering the
+backend's maximum 300-second budget plus response time. Configure the proxy timeout accordingly.
+If the connection breaks, read the plugin state before retrying: a lost response does not tell you
+whether the operation completed.
 
 ## Run the quality gates
 
@@ -65,8 +75,8 @@ uv run pip-audit --strict --requirement audit-requirements.txt
 uv run python scripts/check_open_source_hygiene.py .
 ```
 
-A nonzero result is a failure. Tests require at least 85% branch-aware source coverage, treat Python
-warnings as errors, and run strict mypy checks. `audit-requirements.txt` is generated locally and
+A nonzero result is a failure. Coverage includes statements and branches and must reach 85%. Python
+warnings fail the tests, and type checks use mypy's strict mode. `audit-requirements.txt` is generated locally and
 must not be committed.
 
 ## Check a running backend

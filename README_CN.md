@@ -2,8 +2,11 @@
 
 [English](README.md)
 
-ReliaForge 后端用一个 FastAPI 服务运行多个 Python 运维插件。它读取插件信息、检查依赖、
-按顺序启动插件、报告健康状态，并提供经过认证的启动、停止和重启操作。
+ReliaForge 是插件式运维平台。本仓库的后端在一个 FastAPI 进程中托管开发者提供的 Python
+服务插件，负责加载插件、检查依赖、读取配置、报告健康状态，并提供经过认证的启停操作。
+
+每个插件自行定义业务逻辑和 HTTP API。查询服务、后台采集服务或 Runbook 服务都可以接入
+同一个平台。
 
 本仓库包含后端、两个安全示例插件，以及生成新插件的命令。可选的 Web 控制台位于
 [`reliaforge-frontend`](https://github.com/SajoLuo/reliaforge-frontend)。可以查看
@@ -18,6 +21,7 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+cp .env.example .env
 reliaforge
 ```
 
@@ -33,8 +37,8 @@ curl http://127.0.0.1:8000/api/v1/plugins/demo/greeting
 curl http://127.0.0.1:8000/api/v1/plugins/runbook/preview
 ```
 
-需要覆盖本地配置时，把 `.env.example` 复制为不受 Git 跟踪的 `.env`。示例已经允许前端开发
-地址 `http://127.0.0.1:5530`。
+复制得到的 `.env` 已经允许前端开发地址 `http://127.0.0.1:5530`。需要覆盖本地配置时，
+编辑这个不受 Git 跟踪的文件。
 
 ## 创建插件
 

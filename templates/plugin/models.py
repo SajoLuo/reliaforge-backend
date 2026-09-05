@@ -10,10 +10,3 @@ class Message(BaseModel):
 
     message: str
     plugin_id: str
-
-
-class MessageResponse(BaseModel):
-    """Public HTTP response for the generated plugin."""
-
-    message: str
-    plugin_id: str

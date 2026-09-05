@@ -18,7 +18,7 @@ ReliaForge 使用带 `RELIAFORGE_` 前缀的环境变量。`.env.example` 包含
 
 ## 配置浏览器访问
 
-`RELIAFORGE_CORS_ORIGINS` 是准确 HTTP 来源的 JSON 列表。`.env.example` 已允许本地前端
+`RELIAFORGE_CORS_ORIGINS` 列出允许浏览器访问的来源，使用 JSON 数组，每项包含协议、主机和端口。`.env.example` 已允许本地前端
 `http://127.0.0.1:5530`。空列表会关闭跨域访问，通配符来源会被拒绝。带 `Origin` 请求头的
 浏览器管理请求必须来自后端来源或该列表。
 
@@ -36,10 +36,18 @@ uvicorn reliaforge.app:create_app --factory --no-proxy-headers
 
 生产环境会关闭交互式 API 文档和 OpenAPI 文档。
 
+## 使用单实例运行
+
+每次部署运行一个后端进程。每个进程都有自己的插件实例和管理状态，多个 Worker 不会共享
+启停决定。需要自动恢复进程时，交给进程管理工具处理。新启动的后端会启动全部已发现插件，
+包括内置示例；通过 API 停止插件只影响当前进程。
+
 ## 设置启停超时
 
 `RELIAFORGE_PLUGIN_OPERATION_TIMEOUT_SECONDS` 为一次启动、停止或重启设置总时间限制，其中也
-包括排队等待其他操作的时间。重启过程中的停止、初始化、启动和清理共享这一个时间限制。
+包括排队等待其他操作的时间。重启过程中的停止、初始化、启动和清理共享这一个时间限制。控制台为启停请求预留 310 秒，
+覆盖后端最多 300 秒的操作时间和响应时间；请为代理配置相应的超时。连接中断后，先读取插件状态再决定是否重试，
+因为没有收到响应并不能说明操作是否完成。
 
 ## 运行质量检查
 
@@ -61,8 +69,8 @@ uv run pip-audit --strict --requirement audit-requirements.txt
 uv run python scripts/check_open_source_hygiene.py .
 ```
 
-任何非零结果都表示失败。测试要求至少 85% 的分支感知源码覆盖率，把 Python Warning 视为
-错误，并运行严格的 mypy 检查。`audit-requirements.txt` 是本地生成文件，不能提交。
+任何非零结果都表示失败。覆盖率计算包括语句和分支，必须达到 85%；Python 警告也会使测试
+失败，类型检查使用 mypy 严格模式。`audit-requirements.txt` 是本地生成文件，不能提交。
 
 ## 检查运行中的后端
 

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, status
 
-from .models import MessageResponse
+from .models import Message
 from .service import MessageUnavailableError
 
 if TYPE_CHECKING:
@@ -16,11 +16,10 @@ if TYPE_CHECKING:
 def create_router(plugin: Plugin) -> APIRouter:
     router = APIRouter(tags=["{{plugin_id}}"])
 
-    @router.get("/message", response_model=MessageResponse)
-    async def message() -> MessageResponse:
+    @router.get("/message", response_model=Message)
+    async def message() -> Message:
         try:
-            result = plugin.get_message()
-            return MessageResponse.model_validate(result.model_dump())
+            return plugin.get_message()
         except MessageUnavailableError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

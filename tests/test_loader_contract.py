@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -306,3 +307,33 @@ def test_bundled_plugins_keep_internal_imports_in_dynamic_package_namespace() ->
         for source_path in (plugins_root / plugin_id).glob("*.py"):
             source = source_path.read_text(encoding="utf-8")
             assert f"reliaforge.plugins.{plugin_id}" not in source, source_path
+
+
+@pytest.mark.parametrize("declared", [False, True])
+async def test_service_consumption_requires_a_declared_provider(
+    tmp_path: Path, declared: bool
+) -> None:
+    import reliaforge.plugins
+
+    root = Path(reliaforge.plugins.__file__).parent
+    for plugin_id in ("demo", "runbook"):
+        shutil.copytree(
+            root / plugin_id, tmp_path / plugin_id, ignore=shutil.ignore_patterns("__pycache__")
+        )
+    if not declared:
+        _update_manifest(tmp_path / "runbook", dependencies=[])
+    manager = PluginManager((tmp_path,), 1.0, 0.1)
+    manager.discover()
+    manager.validate()
+    try:
+        await manager.start_all()
+        consumer = manager.get_view("runbook")
+        if declared:
+            assert consumer.state == "running"
+            assert manager.get_view("demo").available_actions == []
+        else:
+            assert consumer.state == "error"
+            assert consumer.health.details == {"reason": "UndeclaredDependencyError"}
+            assert (await manager.stop_plugin("demo")).state == "stopped"
+    finally:
+        await manager.stop_all()

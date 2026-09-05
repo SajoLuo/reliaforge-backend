@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -355,13 +356,73 @@ async def test_initialize_failure_enters_safe_error_state() -> None:
     assert plugin.health().status is HealthStatus.ERROR
     assert plugin.health().details == {"reason": "RuntimeError"}
 
-    async def fail_if_stop_hook_runs() -> None:
-        raise AssertionError("stop hook must not run without an initialized context")
+    stopped = False
 
-    plugin._on_stop = fail_if_stop_hook_runs  # type: ignore[method-assign]
+    async def release_partial_resources() -> None:
+        nonlocal stopped
+        assert plugin.context is context
+        stopped = True
+
+    plugin._on_stop = release_partial_resources  # type: ignore[method-assign]
     assert await plugin.stop() is True
+    assert stopped
     assert plugin.health().status is HealthStatus.STOPPED
     assert plugin.context is None
+
+
+@pytest.mark.parametrize("failure", ["exception", "timeout", "cancellation"])
+async def test_partial_initialization_releases_background_resource(failure: str) -> None:
+    manager = PluginManager((_bundled_root(),), 0.05, 0.01)
+    manager.discover()
+    manager.validate()
+    plugin = manager._records["demo"].instance
+    assert plugin is not None
+    entered = asyncio.Event()
+    released = asyncio.Event()
+    worker: asyncio.Task[bool] | None = None
+    original_initialize = plugin._on_initialize
+    original_stop = plugin._on_stop
+
+    async def initialize_then_fail() -> None:
+        nonlocal worker
+        await original_initialize()
+        worker = asyncio.create_task(asyncio.Event().wait())
+        entered.set()
+        if failure == "exception":
+            raise RuntimeError("fixture initialization failure")
+        await asyncio.Event().wait()
+
+    async def release_worker() -> None:
+        if worker is not None:
+            worker.cancel()
+            try:
+                await worker
+            except asyncio.CancelledError:
+                pass
+            finally:
+                released.set()
+        await original_stop()
+
+    plugin._on_initialize = initialize_then_fail  # type: ignore[method-assign]
+    plugin._on_stop = release_worker  # type: ignore[method-assign]
+    operation = asyncio.create_task(manager.start_plugin("demo"))
+    try:
+        await entered.wait()
+        if failure == "cancellation":
+            operation.cancel()
+        with pytest.raises((PluginOperationError, asyncio.CancelledError)):
+            await operation
+        assert released.is_set()
+        assert worker is not None and worker.done()
+        assert plugin.context is None
+        assert manager._services.list_records() == ()
+        assert plugin.state is PluginState.ERROR
+    finally:
+        if worker is not None:
+            worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await worker
+        await manager.stop_all()
 
 
 async def test_initial_error_health_rejects_startup() -> None:

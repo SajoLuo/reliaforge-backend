@@ -41,9 +41,14 @@ class ServiceContainer:
     def get(self, name: str) -> object:
         """Return a public service or raise a stable lookup error."""
 
+        return self.get_record(name).instance
+
+    def get_record(self, name: str) -> ServiceRecord:
+        """Resolve an instance and its provider together."""
+
         with self._lock:
             try:
-                return self._records[name].instance
+                return self._records[name]
             except KeyError as exc:
                 raise ServiceNotFoundError(f"service not found: {name}") from exc
 

@@ -52,3 +52,9 @@ plain operational language, and explain project-specific terms on first use. Omi
 rejected alternatives, internal predecessors, and irrelevant compatibility claims. Keep a negative
 boundary only when it prevents a likely mistake, unsafe deployment, false success, or unsupported
 operation.
+
+Plugin onboarding must name the files to create or replace, include complete runnable code, and
+show the request, expected response, and relevant failure cases. Do not skip the main task with
+instructions such as "replace the business logic." When changing tutorial code, copy the published
+examples into a freshly scaffolded plugin and run them, including behavior after stop and restart.
+Keep executable examples identical in both languages.

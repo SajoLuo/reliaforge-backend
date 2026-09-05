@@ -164,6 +164,8 @@ class BasePlugin(ABC):
         async with self._lifecycle_lock:
             if self.state not in {PluginState.VALIDATED, PluginState.STOPPED, PluginState.ERROR}:
                 return False
+            if self.context is not None:
+                return False
             self.context = context
             try:
                 await self._on_initialize()
@@ -173,14 +175,10 @@ class BasePlugin(ABC):
                 return True
             except asyncio.CancelledError:
                 self._set_error("CancelledError")
-                context.cleanup()
-                self.context = None
                 raise
             except Exception as exc:
                 self._set_error(type(exc).__name__)
                 self.logger.error("plugin initialization failed (%s)", type(exc).__name__)
-                context.cleanup()
-                self.context = None
                 return False
 
     async def start(self) -> bool:
@@ -280,7 +278,7 @@ class BasePlugin(ABC):
 
     @abstractmethod
     async def _on_stop(self) -> None:
-        """Release resources."""
+        """Release resources, including resources from incomplete initialization."""
 
     @abstractmethod
     def _on_health_check(self) -> PluginHealth:

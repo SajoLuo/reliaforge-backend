@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "reliaforge"
 dynamic = ["version"]
-description = "A lightweight, lifecycle-managed plugin platform for operations tooling."
+description = "A plugin-based operations platform for developers' Python services."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }

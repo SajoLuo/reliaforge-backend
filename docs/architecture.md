@@ -31,12 +31,14 @@ remain available. A failed import is removed from its temporary module namespace
 ## Plugin context and shared services
 
 Each plugin receives its own `PluginContext`. The context records which services and event
-subscriptions the plugin created, so cleanup removes only that plugin's resources.
+subscriptions the plugin created, so cleanup removes only that plugin's registrations. The plugin's
+stop hook releases its own clients, tasks, and other resources, including after partial initialization.
 
 A plugin lists each shared service in `capabilities`, then registers it during initialization.
 Consumers request the service by name and validate it against their own runtime-checkable Python
 `Protocol`. Startup fails when a declared service is missing or a plugin registers an undeclared
-service.
+service. A consumer must declare the provider in `dependencies` before resolving its service;
+otherwise initialization fails with `UndeclaredDependencyError`.
 
 ## Settings
 

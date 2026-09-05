@@ -348,20 +348,29 @@ class PluginManager:
             self._events,
             plugin.manifest.capabilities,
             settings,
+            dependencies=tuple(dependency.id for dependency in plugin.manifest.dependencies),
         )
         try:
             async with asyncio.timeout(self._remaining_seconds(operation_deadline)):
                 await self._initialize_for_start(plugin_id, plugin, context)
                 await self._start_initialized(plugin_id, plugin)
         except TimeoutError as exc:
-            try:
-                async with asyncio.timeout(self._remaining_seconds(operation_deadline)):
-                    cleanup_succeeded = await plugin.stop()
-            except TimeoutError:
-                plugin.mark_error("cleanup_timeout")
-            else:
-                plugin.mark_error("startup_timeout" if cleanup_succeeded else "cleanup_failed")
+            await self._cleanup_interrupted_start(plugin, operation_deadline, "startup_timeout")
             raise PluginOperationTimeoutError(f"plugin startup timed out: {plugin_id}") from exc
+        except asyncio.CancelledError:
+            await self._cleanup_interrupted_start(plugin, operation_deadline, "startup_cancelled")
+            raise
+
+    async def _cleanup_interrupted_start(
+        self, plugin: BasePlugin, deadline: float, reason: str
+    ) -> None:
+        try:
+            async with asyncio.timeout(self._remaining_seconds(deadline)):
+                succeeded = await plugin.stop()
+        except TimeoutError:
+            plugin.mark_error("cleanup_timeout")
+        else:
+            plugin.mark_error(reason if succeeded else "cleanup_failed")
 
     @staticmethod
     def _remaining_seconds(deadline: float) -> float:
@@ -380,6 +389,10 @@ class PluginManager:
         if plugin.state is PluginState.INITIALIZED:
             return
         if not await plugin.initialize(context):
+            details = plugin.health().details
+            reason = details.get("reason") if details else None
+            await plugin.stop()
+            plugin.mark_error(reason if isinstance(reason, str) else "initialize_failed")
             raise PluginOperationError(f"plugin initialize failed: {plugin_id}")
         missing_capabilities = context.missing_capabilities()
         if not missing_capabilities:

@@ -24,19 +24,15 @@ class Plugin(BasePlugin):
         settings = self.context.get_settings(GeneratedPluginSettings)
         self.service = MessageService(settings)
         self.context.register_service("{{plugin_id}}.message", self.service)
-        await self.context.publish("{{plugin_id}}.lifecycle", {"phase": "initialized"})
 
     async def _on_start(self) -> None:
         if self.context is None or self.service is None:
             raise RuntimeError("plugin service is unavailable")
         self.service.start()
-        await self.context.publish("{{plugin_id}}.lifecycle", {"phase": "started"})
 
     async def _on_stop(self) -> None:
         if self.service is not None:
             self.service.stop()
-        if self.context is not None:
-            await self.context.publish("{{plugin_id}}.lifecycle", {"phase": "stopped"})
         self.service = None
 
     def _on_health_check(self) -> PluginHealth:

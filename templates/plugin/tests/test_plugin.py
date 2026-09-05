@@ -13,8 +13,10 @@ async def test_generated_plugin_starts_and_reports_healthy() -> None:
     manager = PluginManager((root,), 5.0, 1.0)
     manager.discover()
     manager.validate()
-    await manager.start_all()
-    view = manager.get_view("{{plugin_id}}")
-    assert view.state == "running"
-    assert view.health.status == "healthy"
-    await manager.stop_all()
+    try:
+        await manager.start_all()
+        view = manager.get_view("{{plugin_id}}")
+        assert view.state == "running"
+        assert view.health.status == "healthy"
+    finally:
+        await manager.stop_all()

@@ -47,7 +47,7 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
     expose_api_docs = runtime_settings.environment != "production"
     app = FastAPI(
         title="ReliaForge API",
-        description="Lifecycle-managed plugin platform API",
+        description="Plugin-based operations platform API",
         version=__version__,
         docs_url="/api/v1/docs" if expose_api_docs else None,
         redoc_url=None,
